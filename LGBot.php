@@ -17,14 +17,14 @@ class LGBot {
 	private function request() {
 		$this->response = curl_exec($this->ch);
 		
-		@$this->currentDom->loadHTML($this->response);
-		$this->xpath = new DOMXpath($this->currentDom);
-	}
-	
-	private function getCodeFromDocument() : string {
-		$entries = $this->xpath->query('//input[@type="hidden" and @name="code"]/@value');
+		//echo "\n\nResponse to ". curl_getinfo($this->ch, CURLINFO_EFFECTIVE_URL). ":\n\n" . var_export($this->response, true) . "\n\n\n";
 		
-		return $entries[0]->nodeValue;
+		if($this->response == '') return;
+		
+		try {
+			@$this->currentDom->loadHTML($this->response);
+			$this->xpath = new DOMXpath($this->currentDom);
+		} catch(Exception $e) { }
 	}
 	
 	private $cookiesPath;
@@ -37,6 +37,7 @@ class LGBot {
 		# Initializes curl
 		$this->ch = curl_init();
 		$this->curlopt(CURLOPT_RETURNTRANSFER, true);
+		#$this->curlopt(CURLOPT_VERBOSE, true);
 		$this->curlopt(CURLOPT_ENCODING, 'gzip,deflate'); 
 		$this->curlopt(CURLOPT_AUTOREFERER, true);
 		$this->curlopt(CURLOPT_FOLLOWLOCATION, true);
@@ -45,7 +46,8 @@ class LGBot {
 		self::log("Storing cookies in ".$this->cookiesPath);
 		
 		if(!@filesize($this->cookiesPath)) {
-			$this->login($username);
+			if(!$this->login($username))
+				throw new Exception('(LGBot::__construct) Failed to log in');
 		} else {
 			self::log("Cookies from previous session found. Skipping login.");
 			$this->curlopt(CURLOPT_COOKIEJAR, $this->cookiesPath);
@@ -54,7 +56,7 @@ class LGBot {
 	}
 	
 	# Logs the bot in using the newline-separated credentials in $loginCredsFilePath
-	public function login(string $username) {
+	public function login(string $username) : bool {
 		self::log("Logging '$username' in...");
 		
 		$loginCredsFile = fopen("login-$username.txt", 'r');
@@ -91,6 +93,21 @@ class LGBot {
 		]);
 
 		$this->request();
+		
+		$this->curlopt(CURLOPT_URL, 'http://www.livegore.com/');
+		$this->curlopt(CURLOPT_HTTPGET, true);
+		$this->curlopt(CURLOPT_HTTPHEADER, [
+			'User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:108.0) Gecko/20100101 Firefox/108.0',
+			'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+			'Accept-Language: en-US,en;q=0.5',
+			'Connection: keep-alive',
+			'Upgrade-Insecure-Requests: 1'
+		]);
+		$this->request();
+		
+		$userLink = $this->xpath->query("//div[@class='rb-userp']/div[@class='rb-havatar']/a[@class='rb-avatar-link' and @href='./user/".urlencode($username)."']");
+		
+		return count($userLink) != 0; # if userLink is empty, the login failed
 	}
 	
 	private $currentVideo;
@@ -118,8 +135,9 @@ class LGBot {
 		$urls = $xml->xpath('//loc');
 		$result = [];
 		
-		foreach($urls as $url)
-			array_push($result, $url->nodeValue);
+		foreach($urls as $url) {
+			array_push($result, $url->__toString());
+		}
 		
 		return $result;
 	}
@@ -134,7 +152,7 @@ class LGBot {
 		}
 		
 		# Gets the raw HTML of the voting panel
-		$votingPanel = $this->currentDom->getElementById("voting_$videoId");
+		$votingPanel = $this->currentDom->getElementById("voting_$id");
 		$xml = $votingPanel->ownerDocument->saveXML($votingPanel);
 		
 		if(strpos($xml, 'rb-voted-up-button'))
@@ -158,10 +176,14 @@ class LGBot {
 			$uri = parse_url($this->currentVideo)['path'];
 			$id = str_replace('/', '', dirname($uri));
 			
+			#echo "\n\ntarget='".$this->currentVideo."'\nuri=$uri\nid=$id\n//form[div[@id='voting_$id']]/input[@type='hidden' and @name='code']/@value\n\n";
+			
 			$votingCode = $this->xpath->query("//form[div[@id='voting_$id']]/input[@type='hidden' and @name='code']/@value")[0]->nodeValue;
 		} else {
-			$votingCode = $this->xpath->query(".//input[@type='hidden' and @name='code' and ../div/@id='voting_$id']/@value", $commentNode)[0]->nodeValue;
+			$votingCode = $this->xpath->query("//input[@type='hidden' and @name='code' and ../div/@id='voting_$id']/@value")[0]->nodeValue;
 		}
+		
+		#echo "Voting code: $votingCode\n";
 		
 		$this->curlopt(CURLOPT_URL, "https://www.livegore.com");
 		$this->curlopt(CURLOPT_POST, true);
@@ -183,7 +205,7 @@ class LGBot {
 		$this->curlopt(CURLOPT_POSTFIELDS, "postid=$id&vote=$vote&code=$votingCode&qa=ajax&qa_operation=vote&qa_root=..%2F&qa_request=$uri");
 		$this->request();
 		
-		return getVote($id) === $vote;
+		return $this->getVote($id) === $vote;
 	}
 	
 	# Returns all comments as an array of associative arrays containing the following fields: text, poster, date, id
