@@ -17,8 +17,6 @@ class LGBot {
 	private function request() {
 		$this->response = curl_exec($this->ch);
 		
-		//echo "\n\nResponse to ". curl_getinfo($this->ch, CURLINFO_EFFECTIVE_URL). ":\n\n" . var_export($this->response, true) . "\n\n\n";
-		
 		if($this->response == '') return;
 		
 		try {
@@ -29,7 +27,7 @@ class LGBot {
 	
 	private $cookiesPath;
 	
-	public function __construct(string $username) {
+	public function __construct(string $username, bool $useTor = false) {
 		# Initializes the DomDocument object that will hold the response of the server
 		$this->currentDom = new DomDocument();
 		$this->xpath = new DOMXpath($this->currentDom);
@@ -41,6 +39,9 @@ class LGBot {
 		$this->curlopt(CURLOPT_ENCODING, 'gzip,deflate'); 
 		$this->curlopt(CURLOPT_AUTOREFERER, true);
 		$this->curlopt(CURLOPT_FOLLOWLOCATION, true);
+		
+		if($useTor)
+			$this->setTor();
 		
 		$this->cookiesPath = dirname(__FILE__)."/cookies-$username.txt"; # IT WILL ONLY WORK USING ABSOLUTE PATHS
 		self::log("Storing cookies in ".$this->cookiesPath);
@@ -108,6 +109,14 @@ class LGBot {
 		$userLink = $this->xpath->query("//div[@class='rb-userp']/div[@class='rb-havatar']/a[@class='rb-avatar-link' and @href='./user/".urlencode($username)."']");
 		
 		return count($userLink) != 0; # if userLink is empty, the login failed
+	}
+	
+	public function setTor() : void {
+		$this->curlopt(CURLOPT_PROXY, "127.0.0.1:9050");
+		$this->curlopt(CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5);
+	}
+	public function unsetTor() : void {
+		$this->curlopt(CURLOPT_PROXY, '');
 	}
 	
 	private $currentVideo;
