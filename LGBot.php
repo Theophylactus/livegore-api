@@ -145,6 +145,7 @@ class LGBot {
 		$result = [];
 		
 		foreach($urls as $url) {
+			if(strpos($url, '/user') || strpos($url, '/questions') || strpos($url, '/categories') || strpos($url, '/tag')) continue;
 			array_push($result, $url->__toString());
 		}
 		
@@ -316,12 +317,16 @@ class LGBot {
 		return false;		
 	}
 	
-	# Comment on comment 27033
-	public function reply(int $id, string $text) : void {
+	# Replies to a comment
+	public function reply(int $id, string $text) : bool {
 		# Get the code
 		$this->loadVideo();
 		
-		$code = $this->xpath->query("//input[@type='hidden' and @name='c${id}_code']/@value")[0]->nodeValue;
+		$code = @$this->xpath->query("//input[@type='hidden' and @name='c${id}_code']/@value")[0]->nodeValue;
+		
+		if(!$code) return false;
+				
+		$questionId = str_replace('q', '', $this->xpath->query("//div[contains(@class, 'question')]/@id")[0]->nodeValue);
 		
 		$this->curlopt(CURLOPT_URL, "https://www.livegore.com");
 		$this->curlopt(CURLOPT_POST, true);
@@ -340,8 +345,12 @@ class LGBot {
 			'TE: trailers'
 		]);
 		
-		$this->curlopt(CURLOPT_POSTFIELDS, "c${id}_content=".urlencode($text)."&=Add+comment&docancel=Cancel&c${id}_editor=&c${id}_doadd=1&c${id}_code=$code&c_questionid=2&c_parentid=27033&qa=ajax&qa_operation=comment&qa_root=.%2F&qa_request=2");
+		$this->curlopt(CURLOPT_POSTFIELDS, "c${id}_content=".urlencode($text)."&=Add+comment&docancel=Cancel&c${id}_editor=&c${id}_doadd=1&c${id}_code=$code&c_questionid=$questionId&c_parentid=${id}&qa=ajax&qa_operation=comment&qa_root=.%2F&qa_request=2");
 		$this->request();
+		
+		self::log("Replied with '$text' to comment $id in video ".$this->currentVideo);
+		
+		return true;
 	}
 }
 
