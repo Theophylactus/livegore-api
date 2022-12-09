@@ -11,7 +11,7 @@ $gifs = ['https://upload.wikimedia.org/wikipedia/commons/1/18/RollingThunder.gif
          'https://1.bp.blogspot.com/-MGbjG6k9MAA/XOw6f1Je9SI/AAAAAAAAJ0c/mdN4JcLC-SwJvH9xZBTDD0eNi0ohSFu_ACLcBGAs/s1600/8338a4183f8323492c23705c48e83197.gif',
          'https://1.bp.blogspot.com/-uoBJxnFO_iU/X8mcBG_oxMI/AAAAAAAClH0/uq2YbmL4vvUm8h3geNASc_hBwkqSqaXvwCLcBGAsYHQ/s453/11ben-hur-1959-chariot-race-gif.gif',
          'https://media3.giphy.com/media/huDUAwzQYv6g/giphy.gif?cid=790b7611c979889f1114f1b34234d98de17e8febec9410f6&rid=giphy.gif&ct=g',
-         'https://thumbs.gfycat.com/TiredNippyIrishsetter-size_restricted.gif'];
+         'https://thumbs.gfycat.com/TiredNippyIrishsetter-size_restricted.gif', 'https://media.tenor.com/HgTNPlLNcSYAAAAd/red-coat.gif'];
 	
 $psalms = ['ALL HAIL THE KING @THEOPHYLACTUS', 'THEOPHYLACTUS I, SOVEREIGN OF LIVEGORE', 'GOD SAVE THE KING! GOD SAVE THE KING! GOD SAVE THE KING THEOPHYLACTUS I OF LIVEGORE!', 'Bow before @Theophylactus, NEW KING of Livegore!',
            'Who shall not fear thee, O @Theophylactus, and glorify thy name? for thou only art holy: for all nations shall come and worship before thee; for thy judgments are made manifest. THEOPHYLACTUS OWNS LIVEGORE!',
@@ -34,13 +34,11 @@ $acc6 = new LGBot('British Empire', true);
 
 $videos = array_reverse(LGBot::fetchAllVideos());
 
-$count = 0;
-
-$totalVotes = 0;
-
 foreach($videos as $video) {
-	#++$count;
-	#if($count < 85) continue;
+	$uri = parse_url($video)['path'];
+	$id = str_replace('/', '', dirname($uri));
+	
+	if($id > 258719) continue;
 	
 	$acc1->setTargetVideo($video);
 	$acc2->setTargetVideo($video);
@@ -53,6 +51,9 @@ foreach($videos as $video) {
 	
 	$comments = $acc1->getComments();
 	
+	if(!$comments)
+		LGBot::log("No comments to reply");
+	
 	foreach($comments as &$comment) {
 		if(in_array($comment['poster'], ['Spanish Empire', 'Roman Empire', 'Japanese Empire', 'Belgian Empire', 'Russian Empire', 'British Empire'])) continue;
 		
@@ -63,21 +64,19 @@ foreach($videos as $video) {
 		if(rand(0, 1)) $acc5->reply($comment['id'], generateRandomComment());
 		if(rand(0, 1)) $acc6->reply($comment['id'], generateRandomComment());
 		
-		if(rand(0, 1)) $totalVotes += $acc1->vote(-1, $comment['id']);
-		if(rand(0, 1)) $totalVotes += $acc2->vote(-1, $comment['id']);
-		if(rand(0, 1)) $totalVotes += $acc3->vote(-1, $comment['id']);
-		if(rand(0, 1)) $totalVotes += $acc4->vote(-1, $comment['id']);
-		if(rand(0, 1)) $totalVotes += $acc5->vote(-1, $comment['id']);
-		if(rand(0, 1)) $totalVotes += $acc6->vote(-1, $comment['id']);
-	}
-	
-	if(!$comments)
-		LGBot::log("No comments to reply");
-	
-	if($totalVotes >= 50) {
-		$totalVotes = 0;
-		LGBot::log("Reached 50 votes. Waiting 1 hour...");
-		sleep(3610);
+		$voted = 0;
+		
+		$voted += $acc1->vote(-1, $comment['id']);
+		$voted += $acc2->vote(-1, $comment['id']);
+		$voted += $acc3->vote(-1, $comment['id']);
+		$voted += $acc4->vote(-1, $comment['id']);
+		$voted += $acc5->vote(-1, $comment['id']);
+		$voted += $acc6->vote(-1, $comment['id']);
+		
+		if($voted < 4) {
+			LGBot::log("Server rejected votes. Waiting 1 hour...");
+			sleep(3600);
+		}
 	}
 }
 ?>
